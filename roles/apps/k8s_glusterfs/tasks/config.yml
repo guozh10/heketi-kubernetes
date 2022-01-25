@@ -1,0 +1,66 @@
+---
+- name: system os info
+  setup:
+    filter: ansible_devices
+  register: os_info
+#- debug:
+#     msg: "{{ os_info.ansible_facts.ansible_devices }}"
+- name: check disk
+  shell: "fdisk -l {{ item }}"
+  with_items: "{{ disk_sum }}"
+
+- name: 获取磁盘分区
+  parted:
+    device: "/dev/{{ item.key }}"
+    number: 1
+    state: absent
+  when: item.key | regex_search('vd[b-w]$')
+  with_dict: "{{ ansible_device_links.ids }}"
+#  register: disk_sum
+
+#- debug:
+#     msg: "{{ disk_sum.key }}"
+#
+
+#- name: disk info
+
+#  shell:  "echo {{ item.key }} "
+#  when: item.key | regex_search('vd[b-w]$')
+#  with_dict: "{{ ansible_device_links.ids }}"
+#  register: os_info
+
+#- debug:
+#    msg: "{{ os_info.key }}"
+#- name: template topology.json
+#  template:
+#    src: topology1.json
+#    dest: /tmp/topology2.json
+#  when: inventory_hostname == groups['k8sservervm'][0] 
+#- name: load topology.json
+#  slurp:
+#    src: /tmp/topology2.json
+#  register: imported_json
+#  when: inventory_hostname == groups['k8sservervm'][0] 
+#- debug:
+#    msg: "{{ imported_json.content|b64decode|from_yaml }}"
+#  when: inventory_hostname == groups['k8sservervm'][0]
+#- debug:
+#    var: imported_json.content|b64decode | to_nice_json
+#  when: inventory_hostname == groups['k8sservervm'][0]
+
+#- name: sss
+#  shell: "{{imported_json.content|b64decode|from_yaml }} > /tmp/sss.json"
+#  when: inventory_hostname == groups['k8sservervm'][0]
+#- name: write updated topology.json to file
+#  copy: 
+#    content: "{{ imported_json.content| b64decode|to_nice_json }}" 
+#    dest: /tmp/topology3.json
+#  when: inventory_hostname == groups['k8sservervm'][0]
+
+#- name: modify individual key-value
+#  set_fact:
+#    imported_json: "{{ imported_json.content|b64decode|from_yaml | combine(item, recursive=True)}}"
+#  loop:
+#    - "{'s':12}"
+#- debug:
+#    var: imported_json | to_nice_json

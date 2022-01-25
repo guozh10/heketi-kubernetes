@@ -1,0 +1,5 @@
+[k8sservervm]
+102.168.100.5 mgmt_ip=192.168.100.5 hostname=node1 ansible_user=root ansible_password=passw0rd
+192.168.100.6 mgmt_ip=192.168.100.6 hostname=node2 ansible_user=root ansible_password=passw0rd
+192.168.100.7  mgmt_ip=192.168.100.7 hostname=node3 ansible_user=root ansible_password=passw0rd
+

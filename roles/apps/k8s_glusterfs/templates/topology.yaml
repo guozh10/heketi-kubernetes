@@ -1,0 +1,16 @@
+clusters:
+  - nodes:
+{% for host in groups[ 'k8sservervm' ] %}
+      - node:
+          hostnames:
+            manage:
+              - {{ hostvars[host]['hostname'] }}
+            storage:
+              - {{ hostvars[host]['mgmt_ip'] }}
+          zone: 1
+        devices:
+{% for disk in disk_sum %}
+          - name: {{ disk }}
+            destroydata: true
+{% endfor %}
+{% endfor %}

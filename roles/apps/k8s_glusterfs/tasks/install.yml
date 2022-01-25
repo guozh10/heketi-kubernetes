@@ -1,0 +1,175 @@
+---
+
+- name: clean glusterfs data
+  file:
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - "/var/log/glusterfs/"
+    - "/var/lib/heketi"
+    - "/var/lib/glusterd/"
+    - "/etc/glusterfs/"
+
+- name: clean glusterfs dataa
+  shell: "dd if=/dev/zero of={{ item }} bs=512k count=1"
+  with_items: "{{ disk_sum }}"
+
+
+- name: GlusterFS | Delete addon dir
+  file:
+    path: "{{ kube_config_dir }}/addons/glusterfs"
+    state: absent
+  when: inventory_hostname == groups['k8sservervm'][0]
+
+
+- name: GlusterFS | Create addon dir
+  file:
+    path: "{{ kube_config_dir }}/addons/glusterfs"
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+  when: inventory_hostname == groups['k8sservervm'][0]
+
+- name: GlusterFS | Copy files to local
+  copy:
+    src: "{{ item }}"
+    dest: "{{ kube_config_dir }}/addons/glusterfs"
+    owner: root
+    group: root
+    mode: 0755
+  with_items:
+    - heketi-client/kubernetes/
+  when: inventory_hostname == groups['k8sservervm'][0]
+
+- name: GlusterFS | Delete old resources
+  shell: "kubectl delete -f {{ kube_config_dir }}/addons/glusterfs"
+  ignore_errors: True
+  when: inventory_hostname == groups['k8sservervm'][0]
+
+
+- name: GlusterFS | Delete old heketi-config-secret
+  shell: kubectl delete  secret/heketi-config-secret
+  when: inventory_hostname == groups['k8sservervm'][0]
+  ignore_errors: True
+
+- name: GlusterFS |copy heketi-cli tools
+  copy: 
+    src: heketi-client/bin/heketi-cli 
+    dest: /usr/local/bin/ 
+    mode: 0755
+
+
+- name: GlusterFS| Load the glusterfs kernel module
+  shell: "modprobe {{ item }}"
+  with_items:
+    - dm_thin_pool
+    - dm_mirror
+    - dm_thin_pool
+
+- name: GlusterFS| All k8s nodes are marked with storagenode
+  shell: "kubectl label node {{ hostvars[item]['hostname'] }} storagenode-"
+  with_items: "{{ groups['k8sservervm'] }}"
+  when: inventory_hostname == groups['k8sservervm'][0]
+  ignore_errors: True
+
+- name: GlusterFS| All k8s nodes are marked with storagenode
+  shell: "kubectl label node {{ hostvars[item]['hostname'] }} storagenode=glusterfs"
+  with_items: "{{ groups['k8sservervm'] }}"
+  when: inventory_hostname == groups['k8sservervm'][0]
+
+- name: GlusterFS| install  glusterfs-fuse
+  yum:
+    name: glusterfs-fuse
+    state: present
+
+- name: glusterfs provisioner | Templates list
+  set_fact:
+   glusterfs_provisioner_templates:
+      - { name: rbac, file: glusterfs/heketi-service-account.yaml,  type: rbac }
+      - { name: daemonset, file: glusterfs/glusterfs-daemonset.yaml,  type: daemonset }
+      - { name: deployment, file: glusterfs/heketi-bootstrap.yaml, type: deployment }
+#      - { name: storageclass, file: gluster-storage-class.yaml, type: sc }
+      
+  when: inventory_hostname == groups['k8sservervm'][0]
+
+- name: GlusterFS | Copy files to local
+  copy:
+    src: "{{ item }}"
+    dest: "{{ kube_config_dir }}/addons/glusterfs"
+    owner: root
+    group: root
+    mode: 0755
+  with_items:
+    - heketi-client/heketi
+  when: inventory_hostname == groups['k8sservervm'][0]
+
+
+- name: GlusterFS | create heketi-config-secret
+  shell: "kubectl create secret generic heketi-config-secret --from-file=./heketi.json"
+  args:
+    chdir: "{{ kube_config_dir }}/addons/glusterfs/heketi"
+  when: inventory_hostname == groups['k8sservervm'][0]
+
+- name: GlusterFS provisioner | Apply manifests
+  kube:
+    name: "{{ item.name }}"
+    kubectl: "{{ bin_dir }}/kubectl"
+    resource: "{{ item.type }}"
+    filename: "{{ kube_config_dir }}/addons/{{ item.file }}"
+    state: "latest"
+  with_items: "{{ glusterfs_provisioner_templates }}"
+  when: inventory_hostname == groups['k8sservervm'][0]
+
+- name: GlusterFS | check pod status 
+  shell: "kubectl get pod| grep glusterfs| grep 0/1| wc -l"
+  register: gluster_pod
+  until: 'gluster_pod.stdout == "0"'
+  retries: 20
+  delay: 30
+  when: inventory_hostname == groups['k8sservervm'][0]
+
+- name: heketi svc ip
+  shell: "kubectl get svc | awk  '/deploy-heketi/ {print $3}'"
+  register: Clusterip
+  when: inventory_hostname == groups['k8sservervm'][0]
+
+- name: GlusterFS | test heketi url 
+  uri:
+    method: GET
+    url: "http://{{ Clusterip.stdout }}:8080/hello"
+  register: heketi_api
+  until: heketi_api is succeeded
+  retries: 20
+  delay: 30
+  when: inventory_hostname == groups['k8sservervm'][0]
+
+- name: GlusterFS |template topology.yaml
+  template:
+    src: topology.yaml
+    dest: "{{ kube_config_dir }}/addons/glusterfs/heketi"
+  when: inventory_hostname == groups['k8sservervm'][0]
+
+
+- name: GlusterFS | topology.yaml to topology.json
+  shell: sh yaml_json.sh
+  args:
+    chdir: "{{ kube_config_dir }}/addons/glusterfs/heketi"
+  when: inventory_hostname == groups['k8sservervm'][0]
+
+- name: GlusterFS |add cluster
+  shell: "heketi-cli topology load --json topology.json --secret admin123 --user admin --server http://{{ Clusterip.stdout }}:8080"
+  args:
+    chdir: "{{ kube_config_dir }}/addons/glusterfs/heketi"
+  when: inventory_hostname == groups['k8sservervm'][0]
+
+- name: GluserFS | set gluster-storage-class.yaml heketi url
+  shell: "sed -i 's/heketi_url/{{ Clusterip.stdout }}/g' {{ kube_config_dir }}/addons/glusterfs/gluster-storage-class.yaml"
+  when: inventory_hostname == groups['k8sservervm'][0]
+
+- name: GlusterFS provisioner | Apply storageclass yaml
+  shell: "{{ bin_dir }}/kubectl apply -f gluster-storage-class.yaml"
+  args:
+    chdir: "{{ kube_config_dir }}/addons/glusterfs"
+  when: inventory_hostname == groups['k8sservervm'][0]
+

@@ -1,0 +1,17 @@
+---
+
+- name: check hosts up
+  shell: "ping -c 10 {{ item }}"
+  with_items: "{{ node }}"
+  register: ping_status
+  until:  ping_status is succeeded
+  retries: 20
+  delay: 30
+
+#- name: check ssh 
+#  ping:
+#  register: ping_status
+#  until:  ping_status is succeeded
+#  retries: 20
+#  delay: 30
+  

@@ -1,0 +1,6 @@
+enable_node: True
+
+disk_sum:
+  - "/dev/vdb"
+  - "/dev/vdc"
+

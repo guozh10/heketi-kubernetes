@@ -1,0 +1,4 @@
+- hosts: k8sservervm
+  any_errors_fatal: "{{ any_errors_fatal | default(true) }}"
+  roles:
+    - { role: apps/k8s_glusterfs, tags: glusterfs }

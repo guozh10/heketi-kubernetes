@@ -1,0 +1,8 @@
+---
+#dest_path: /etc/kubernetes/addons/
+disk_sum: 
+  - "/dev/vdb"
+  - "/dev/vdd"
+
+bin_dir: /usr/local/bin
+kube_config_dir: /etc/kubernetes

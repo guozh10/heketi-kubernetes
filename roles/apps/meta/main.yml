@@ -1,0 +1,20 @@
+---
+
+dependencies:
+
+  - role: apps/check-node
+    when:
+      - inventory_hostname == groups['localhost'][0]
+    tags:
+      - apps
+  - role: apps/k8s_glusterfs
+    when:
+      - inventory_hostname == groups['k8sservervm'][0]
+    tags:
+      - apps
+      - glusterfs
+#  - role: apps/check-node
+#    tags:
+#      - apps
+
+

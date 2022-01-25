@@ -1,0 +1,26 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: heketi-secret
+  namespace: default
+data:
+  key: YWRtaW4xMjM=
+type: kubernetes.io/glusterfs
+
+
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gluster-heketi                       
+provisioner: kubernetes.io/glusterfs
+parameters:
+  resturl: "http://heketi_url:8080"
+  restauthenabled: "true"
+  restuser: "admin"
+  secretName: "heketi-secret"
+  secretNamespace: "default"
+  gidMin: "40000"
+  gidMax: "50000"
+  volumetype: "replicate:2"
